@@ -1,0 +1,30 @@
+# Data contract: the producer/consumer agreement on schema, semantics, freshness and
+# quality. Checked at runtime by the Data Assurance agent; changes go through governed approval.
+dataset: sales_daily
+version: 1
+description: "Daily point-of-sale orders exported by the POS platform (one file per business day)."
+owner: sales-data-eng@contoso.example
+source_owner: pos-platform@contoso.example
+match: ["sales_*.csv", "sales_*.tsv", "sales_*.txt"]
+classification: internal
+load_mode: append               # each file is a partition; re-sent partitions replace earlier rows
+partition_column: order_date
+primary_key: [order_id]
+freshness: {expected_every_min: 1440, grace_min: 120}      # the orchestrator *declares* when data is due
+volume: {min_rows: 50, max_drop_pct: 60, max_growth_pct: 300, baseline_versions: 5}
+data_freshness: {column: order_date, max_age_days: 7}        # catches "yesterday's file sent again"
+reject_rate_max: 0.05
+control_totals: [amount, quantity]                           # reconciliation (revenue-assurance pattern)
+drift: {psi_warn: 0.10, psi_fail: 0.25, columns: [amount, unit_price]}
+rules:
+  - {name: amount_equals_qty_x_price, expr: "abs(amount - quantity * unit_price) <= 0.05", max_violation_rate: 0.02, severity: high}
+columns:
+  - {name: order_id,    type: string, required: true, unique: true, regex: "^ORD-\\d{6,}$"}
+  - {name: order_date,  type: date,   required: true, formats: ["%Y-%m-%d"]}
+  - {name: customer_id, type: string, required: true, regex: "^C\\d{4,}$", references: {dataset: customers, column: customer_id, max_orphan_rate: 0.02}}
+  - {name: product_id,  type: string, required: true, regex: "^P\\d{3,}$"}
+  - {name: quantity,    type: int,    required: true, min: 1, max: 1000}
+  - {name: unit_price,  type: float,  required: true, min: 0.01, max: 100000}
+  - {name: amount,      type: float,  required: true, min: 0.01, max: 10000000}
+  - {name: channel,     type: string, required: true, accepted_values: [online, store, partner]}
+  - {name: currency,    type: string, required: false, accepted_values: [INR]}

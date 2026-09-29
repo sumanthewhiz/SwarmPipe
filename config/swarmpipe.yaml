@@ -1,0 +1,139 @@
+# SwarmPipe main configuration.
+# Paths are relative to the project root unless absolute.
+# Any value can be overridden with env vars: SWARMPIPE__<SECTION>__<KEY>=value
+#   e.g.  SWARMPIPE__LLM__ACTIVE_PROFILE=ollama   or   SWARMPIPE__PATHS__INBOX=D:/DropZone
+app:
+  name: SwarmPipe
+  environment: local
+  default_tenant: default
+
+paths:
+  inbox: data/inbox            # <- the watched "drive folder" (the pipeline trigger). Point it anywhere.
+  data_dir: data
+  contracts_dir: config/contracts
+  prompts_dir: prompts
+  knowledge_dir: knowledge
+  evals_dir: evals
+
+watcher:
+  poll_interval_s: 1.0
+  stability_polls: 2            # size+mtime must be unchanged for N polls (file fully copied)
+  extensions: [".csv", ".tsv", ".txt", ".xlsx", ".xls"]
+  ignore_globs: ["~$*", "*.tmp", "*.partial", "*.crdownload", ".*"]
+  max_file_mb: 50
+  backpressure_high_watermark: 40   # stop admitting files when this many runs are queued
+
+engine:
+  workers: 4
+  lease_s: 30
+  heartbeat_s: 5
+  default_max_attempts: 3
+  backoff_base_s: 1.0
+  backoff_max_s: 20.0
+  step_timeout_s: 240
+  llm_concurrency: 2            # bulkhead: max concurrent model calls
+  triage_debounce_s: 3          # wait briefly so related signals cluster before we reason
+  idle_sleep_s: 0.25
+
+llm:
+  active_profile: offline       # offline | ollama | azure | openai   (see profiles below)
+  request_timeout_s: 120
+  max_retries: 2                # transport retries per model (exponential backoff + jitter)
+  max_repairs: 2                # structured-output repair attempts per model
+  cache_enabled: true
+  cache_ttl_s: 86400
+  breaker_failure_threshold: 3
+  breaker_cooldown_s: 30
+  require_certification: false  # if true, only models certified for a role (swarmpipe evals certify) are routed
+  providers:
+    mock:   {type: mock}
+    ollama: {type: openai_compat, base_url: "http://localhost:11434/v1", api_key: "ollama", json_mode: true}
+    openai: {type: openai_compat, base_url: "https://api.openai.com/v1", api_key: "secret://OPENAI_API_KEY", json_mode: true}
+    azure:  {type: azure_openai, endpoint: "secret://AZURE_OPENAI_ENDPOINT", api_key: "secret://AZURE_OPENAI_API_KEY", api_version: "2024-10-21", json_mode: true}
+  models:
+    # Simulated prices for the offline models so cost dashboards are meaningful. Real models: set real prices.
+    sim-small:         {provider: mock,   name: sim-small,         tier: small,  usd_per_1k_in: 0.00015, usd_per_1k_out: 0.0006, context_window: 16000}
+    sim-large:         {provider: mock,   name: sim-large,         tier: large,  usd_per_1k_in: 0.0025,  usd_per_1k_out: 0.01,   context_window: 128000}
+    llama3.2:          {provider: ollama, name: "llama3.2:latest", tier: small,  usd_per_1k_in: 0.0,     usd_per_1k_out: 0.0,    context_window: 8192}
+    gpt-4o-mini:       {provider: openai, name: gpt-4o-mini,       tier: medium, usd_per_1k_in: 0.00015, usd_per_1k_out: 0.0006, context_window: 128000}
+    azure-gpt-4o-mini: {provider: azure,  name: gpt-4o-mini,       tier: medium, usd_per_1k_in: 0.00015, usd_per_1k_out: 0.0006, context_window: 128000}
+  profiles:
+    # role -> ordered fallback chain. "default" applies to roles not listed.
+    offline:
+      default:   [sim-small]
+      steward:   [sim-large, sim-small]
+      diagnoser: [sim-large, sim-small]
+      planner:   [sim-large, sim-small]
+      analyst:   [sim-large, sim-small]
+      judge:     [sim-large]
+    ollama:     # real local model; simulated model is the circuit-breaker fallback
+      default:   [llama3.2, sim-small]
+      steward:   [llama3.2, sim-large]
+      diagnoser: [llama3.2, sim-large]
+      planner:   [llama3.2, sim-large]
+      analyst:   [llama3.2, sim-large]
+      judge:     [sim-large]
+    azure:
+      default:   [azure-gpt-4o-mini, sim-small]
+      judge:     [azure-gpt-4o-mini, sim-large]
+    openai:
+      default:   [gpt-4o-mini, sim-small]
+
+prompts:
+  pins: {}                      # pin prompt versions per prompt id, e.g. {diagnoser: v1}
+  enforce_lock: true            # refuse prompts whose content hash is not in prompts/prompts.lock.json
+
+guardrails:
+  spotlighting: true            # wrap untrusted content in randomized DATA boundaries
+  injection_detection: true     # heuristic detector for instructions hidden in data
+  pii_redaction_for_llm: true   # never send raw PII to a model
+  secret_leak_check: true       # block prompts that contain secret values
+  max_untrusted_chars: 3500     # bound untrusted blobs placed into context
+  egress_allowlist: ["localhost", "127.0.0.1"]
+
+budgets:
+  per_run_usd: 0.25
+  per_run_tokens: 150000
+  agent_max_steps: 6            # ReAct step budget per agent invocation
+
+incidents:
+  min_severity: warning         # info signals never open incidents
+  correlation_window_min: 30
+  diagnosis_min_confidence: 0.6 # below this the diagnoser abstains and escalates
+
+tenants:
+  # Tenant = sub-folder of the inbox (inbox/<tenant>/file.csv). Files at the inbox root -> "default".
+  default: {daily_llm_requests: 2000, daily_usd: 5.0}
+  acme:    {daily_llm_requests: 40,   daily_usd: 0.50}
+
+users:
+  admin:   {roles: [admin, approver, operator], scopes: ["*"], pii_access: true, tenants: ["*"]}
+  oncall:  {roles: [approver, operator], scopes: ["data:read", "incident", "approval:decide", "knowledge:read", "action"], pii_access: false, tenants: ["*"]}
+  analyst: {roles: [viewer], scopes: ["data:read:published", "knowledge:read"], pii_access: false, tenants: ["default"]}
+
+tracing:
+  sample_rate: 1.0              # head sampling for successful traces (errors are always kept)
+  always_keep_errors: true
+  export_jsonl: true
+
+retention:
+  telemetry_days: 7
+  metrics_days: 14
+
+slos:
+  - {id: ingest-latency, description: "95% of files published or quarantined within 60s of arrival", objective: 0.95, metric: ingest_e2e_seconds, threshold: 60, window_h: 24}
+  - {id: ingest-success, description: "99% of files finish without dead-lettering", objective: 0.99, metric: ingest_outcome, window_h: 24}
+  - {id: triage-latency, description: "95% of incidents diagnosed within 180s", objective: 0.95, metric: triage_diagnosis_seconds, threshold: 180, window_h: 24}
+
+features:
+  auto_remediation: true
+  llm_date_format_inference: true
+  derived_datasets: true
+  shadow_candidates: {}         # e.g. {diagnoser: {prompt_version: v2}} -> candidate runs in shadow, agreement is measured
+
+mcp:
+  act_as_user: oncall
+
+web:
+  host: 127.0.0.1
+  port: 8765

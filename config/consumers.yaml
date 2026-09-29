@@ -1,0 +1,21 @@
+# The "context graph" inputs that an orchestrator knows declaratively:
+# who consumes each dataset, how critical it is, and which derived datasets are rebuilt from it.
+consumers:
+  - {id: "dash:daily_revenue",      name: "Daily Revenue Dashboard",             type: dashboard,        depends_on: [sales_enriched],            owner: finance-analytics@contoso.example, criticality: high,     regulated: false, sla: "08:30 IST daily"}
+  - {id: "rpt:gst_filing",          name: "GST Sales Tax Filing Extract",        type: regulated_report, depends_on: [sales_daily, customers],    owner: tax-reporting@contoso.example,     criticality: critical, regulated: true,  sla: "11th of each month"}
+  - {id: "ml:demand_forecast",      name: "Demand Forecast Model",               type: ml_model,         depends_on: [sales_enriched, inventory], owner: data-science@contoso.example,      criticality: medium,   regulated: false, sla: "weekly retrain"}
+  - {id: "agent:replenishment",     name: "Replenishment Agent (AI consumer)",   type: agent,            depends_on: [inventory, sales_enriched], owner: supply-chain-ai@contoso.example,   criticality: high,     regulated: false, sla: "hourly"}
+  - {id: "dash:region_performance", name: "Region Performance Dashboard",        type: dashboard,        depends_on: [sales_enriched, regions],   owner: sales-ops@contoso.example,         criticality: medium,   regulated: false, sla: "09:00 IST daily"}
+
+# Derived datasets are rebuilt by the event-driven `derive` workflow whenever an input publishes.
+# They are skipped (propagation prevented) when an input is on hold or has an open critical incident.
+derived:
+  sales_enriched:
+    inputs: [sales_daily, customers]
+    owner: analytics-eng@contoso.example
+    description: "Sales orders joined with customer region and segment."
+    min_rows: 1
+    sql: |
+      SELECT s.order_id, s.order_date, s.customer_id, s.product_id, s.quantity, s.unit_price, s.amount, s.channel,
+             c.region, c.segment
+      FROM {sales_daily} s LEFT JOIN {customers} c ON s.customer_id = c.customer_id

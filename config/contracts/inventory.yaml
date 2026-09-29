@@ -1,0 +1,19 @@
+dataset: inventory
+version: 1
+description: "Daily stock snapshot from the legacy warehouse system (Excel 97-2003 .xls export)."
+owner: supply-chain-data@contoso.example
+source_owner: wms-legacy@contoso.example
+match: ["inventory_*.xls", "inventory_*.xlsx", "inventory_*.csv", "inventory_*.txt"]
+classification: internal
+load_mode: replace
+primary_key: [product_id, warehouse]
+freshness: {expected_every_min: 1440, grace_min: 60}
+volume: {min_rows: 20, max_drop_pct: 40, max_growth_pct: 200, baseline_versions: 3}
+drift: {psi_warn: 0.10, psi_fail: 0.25, columns: [on_hand]}
+reject_rate_max: 0.05
+columns:
+  - {name: product_id,    type: string, required: true, regex: "^P\\d{3,}$"}
+  - {name: warehouse,     type: string, required: true, accepted_values: [BLR-1, PUN-1, DEL-1]}
+  - {name: on_hand,       type: int,    required: true, min: 0, max: 100000}
+  - {name: reorder_level, type: int,    required: true, min: 0, max: 100000}
+  - {name: last_counted,  type: date,   required: false, formats: ["%Y-%m-%d", "%d/%m/%Y"]}

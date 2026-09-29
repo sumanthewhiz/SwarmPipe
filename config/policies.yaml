@@ -1,0 +1,47 @@
+# Policy-as-code for agent actions: deterministic authorization, outside the model.
+# The model never decides whether it is allowed to act. The PolicyEngine evaluates these rules for
+# every proposed action and returns: deny | inform_only | recommend | require_approval |
+# auto_execute_notify | auto_execute.
+version: 1
+
+# Autonomy ladder: effect granted at each level.
+level_effects:
+  L0: inform_only          # explain with evidence; no actions offered
+  L1: recommend            # suggest; a human executes
+  L2: require_approval     # prepare; a human confirms; the system executes
+  L3: auto_execute_notify  # execute reversible low-blast-radius actions, notify, one-click rollback
+  L4: auto_execute         # autonomous within policy; review by exception
+
+# Action classes. default_level is where each class starts; max_level is a hard ceiling that
+# evidence can never exceed.
+actions:
+  notify_owner:           {risk: low,      reversible: true, default_level: L3, max_level: L4}
+  request_resend:         {risk: low,      reversible: true, default_level: L3, max_level: L4}
+  quarantine_version:     {risk: low,      reversible: true, default_level: L3, max_level: L4}
+  hold_downstream:        {risk: medium,   reversible: true, default_level: L3, max_level: L3}
+  release_hold:           {risk: medium,   reversible: true, default_level: L2, max_level: L3}
+  rollback_dataset:       {risk: medium,   reversible: true, default_level: L2, max_level: L3}
+  reprocess_with_mapping: {risk: medium,   reversible: true, default_level: L2, max_level: L3}
+  update_contract:        {risk: high,     reversible: true, default_level: L1, max_level: L2}
+  force_publish:          {risk: critical, reversible: true, default_level: L1, max_level: L2, typed_confirmation: true, annotation_required: true}
+
+# Escalations can only make a decision stricter (e.g. auto -> require_approval), never looser.
+escalations:
+  - {id: low-confidence,      when: {diagnosis_confidence_lt: 0.75},                              min_effect: require_approval, reason: "Diagnosis confidence is below 0.75"}
+  - {id: injection-suspected, when: {injection_suspected: true},                                   min_effect: require_approval, reason: "Evidence contains suspected prompt injection"}
+  - {id: blast-radius,        when: {blast_radius_gt: 3, risk_in: [high, critical]},              min_effect: require_approval, reason: "More than 3 downstream consumers affected"}
+  - {id: regulated-consumer,  when: {regulated_consumer: true, risk_in: [high, critical]},        min_effect: require_approval, reason: "A regulated report depends on this dataset"}
+  - {id: freeze-window,       when: {in_freeze_window: true, risk_in: [medium, high, critical]},   min_effect: require_approval, reason: "A change-freeze window is active"}
+  - {id: global-auto-cap,     when: {auto_actions_last_hour_gt: 30},                               min_effect: require_approval, reason: "Global auto-action cap reached (cascading-remediation guard)"}
+
+# Denials win over everything else.
+denials:
+  - {id: cooldown, when: {same_action_same_target_within_min: 5, action_in: [rollback_dataset, release_hold, reprocess_with_mapping, update_contract, force_publish]}, reason: "Same state-changing action on the same target within 5 minutes by another incident (anti-flapping)"}
+
+freeze_windows:
+  - {name: month-end-close, days_of_month: [28, 29, 30, 31, 1], enabled: false}
+
+# Evidence needed to move an action class up (or automatically down) the ladder, per tenant.
+autonomy_rules:
+  promote: {min_samples: 5, min_approval_rate: 0.9, min_verification_rate: 1.0, max_rollbacks: 0, auto_promote: false}
+  demote:  {max_verification_failures: 1, max_rollbacks: 1}

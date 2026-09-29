@@ -1,0 +1,9 @@
+{"id": "rt-001", "scenario": "clean_day", "expect": "tabular"}
+{"id": "rt-002", "scenario": "pipe_txt", "expect": "tabular"}
+{"id": "rt-003", "scenario": "runbook_doc", "expect": "document"}
+{"id": "rt-004", "scenario": "poisoned_doc", "expect": "document"}
+{"id": "rt-005", "scenario": "malformed", "file_index": 0, "expect": "unsupported"}
+{"id": "rt-006", "scenario": "malformed", "file_index": 1, "expect": "unsupported"}
+{"id": "rt-007", "scenario": "reference", "file_index": 0, "expect": "tabular"}
+{"id": "rt-008", "scenario": "reference", "file_index": 1, "expect": "tabular"}
+{"id": "rt-009", "scenario": "encoding", "expect": "tabular"}

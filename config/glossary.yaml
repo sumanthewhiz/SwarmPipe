@@ -1,0 +1,36 @@
+# Semantic layer / business glossary (gives physical columns business meaning). Used by:
+#  - the Profiler (map physical columns to business terms),
+#  - the Contract Steward (rename detection via aliases),
+#  - the Analyst (NL -> SQL only through governed metrics and dimensions).
+terms:
+  order_id:      {description: "Unique order identifier", aliases: [order_no, order_number, ord_id, txn_id, transaction_id]}
+  order_date:    {description: "Business date of the order", aliases: [date, txn_date, sale_date, order_dt]}
+  customer_id:   {description: "Customer master key", aliases: [cust_id, customer, customer_ref, client_id, cust_no]}
+  product_id:    {description: "Product (SKU) identifier", aliases: [sku, item_id, product, prod_id]}
+  quantity:      {description: "Units sold", aliases: [qty, units, quantity_sold]}
+  unit_price:    {description: "Price per unit in INR", aliases: [price, unit_cost, rate]}
+  amount:        {description: "Order value in INR (quantity x unit_price)", aliases: [amt, total, sale_amount, order_value, value]}
+  channel:       {description: "Sales channel", aliases: [sales_channel, source]}
+  currency:      {description: "ISO currency code", aliases: [ccy, curr]}
+  email:         {description: "Customer email (PII)", aliases: [email_address, mail, e_mail]}
+  phone:         {description: "Customer phone (PII)", aliases: [mobile, phone_number, contact_no]}
+  region:        {description: "Sales region", aliases: [zone, territory, area]}
+  segment:       {description: "Customer segment", aliases: [customer_segment, tier]}
+  on_hand:       {description: "Units in stock", aliases: [stock, qty_on_hand, available]}
+  warehouse:     {description: "Warehouse code", aliases: [wh, location, site]}
+
+metrics:
+  total_revenue:   {expression: "ROUND(SUM(amount), 2)", dataset: sales_daily, synonyms: [revenue, sales, turnover, total sales, total revenue, gmv]}
+  order_count:     {expression: "COUNT(*)", dataset: sales_daily, synonyms: [orders, order count, number of orders, transactions]}
+  avg_order_value: {expression: "ROUND(AVG(amount), 2)", dataset: sales_daily, synonyms: [average order value, aov, average order]}
+  units_sold:      {expression: "SUM(quantity)", dataset: sales_daily, synonyms: [units sold, units, quantity sold]}
+  customer_count:  {expression: "COUNT(DISTINCT customer_id)", dataset: customers, synonyms: [customers, number of customers, customer count]}
+  stock_on_hand:   {expression: "SUM(on_hand)", dataset: inventory, synonyms: [stock, inventory, stock on hand, units in stock]}
+
+dimensions:
+  region:    {column: region, datasets: [sales_enriched, customers], synonyms: [region, regions, zone]}
+  segment:   {column: segment, datasets: [sales_enriched, customers], synonyms: [segment, segments]}
+  channel:   {column: channel, datasets: [sales_daily, sales_enriched], synonyms: [channel, channels]}
+  product:   {column: product_id, datasets: [sales_daily, inventory, sales_enriched], synonyms: [product, products, sku]}
+  date:      {column: order_date, datasets: [sales_daily, sales_enriched], synonyms: [day, date, daily]}
+  warehouse: {column: warehouse, datasets: [inventory], synonyms: [warehouse, warehouses]}

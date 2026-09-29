@@ -1,0 +1,22 @@
+dataset: customers
+version: 1
+description: "Customer master data exported weekly from the CRM (sheet 'customers')."
+owner: crm-data@contoso.example
+source_owner: crm-platform@contoso.example
+match: ["customers*.xlsx", "customers*.xls", "customers*.csv"]
+sheet: customers
+classification: confidential
+load_mode: replace
+primary_key: [customer_id]
+freshness: {expected_every_min: 10080, grace_min: 1440}
+volume: {min_rows: 10, max_drop_pct: 30, max_growth_pct: 200, baseline_versions: 3}
+reject_rate_max: 0.02
+columns:
+  - {name: customer_id, type: string, required: true, unique: true, regex: "^C\\d{4,}$"}
+  - {name: name,        type: string, required: true,  pii: person_name, mask: tokenize}
+  - {name: email,       type: string, required: true,  pii: email, mask: tokenize}
+  - {name: phone,       type: string, required: false, pii: phone, mask: tokenize}
+  - {name: region,      type: string, required: true,  accepted_values: [North, South, East, West]}
+  - {name: segment,     type: string, required: true,  accepted_values: [Retail, SMB, Enterprise]}
+  - {name: signup_date, type: date,   required: false, formats: ["%Y-%m-%d", "%d/%m/%Y"]}
+  - {name: notes,       type: string, required: false}

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SwarmPipe - agentic data pipeline</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">SwarmPipe <span class="sub">multi-agent data pipeline</span></div>
+  <nav id="tabs"></nav>
+  <div class="controls">
+    <label>acting as <select id="user"><option>oncall</option><option>admin</option><option>analyst</option></select></label>
+    <label>LLM <select id="profile"></select></label>
+    <label><input type="checkbox" id="auto" checked> auto-refresh</label>
+  </div>
+</header>
+<main id="main"></main>
+<div id="drawer" class="drawer hidden"><div class="drawer-head"><span id="drawer-title"></span><button onclick="closeDrawer()">close</button></div><div id="drawer-body"></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

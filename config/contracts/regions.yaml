@@ -1,0 +1,15 @@
+dataset: regions
+version: 1
+description: "Region reference data (sheet 'regions' of the CRM export)."
+owner: sales-ops@contoso.example
+source_owner: crm-platform@contoso.example
+match: ["customers*.xlsx", "customers*.xls"]
+sheet: regions
+classification: internal
+load_mode: replace
+primary_key: [region]
+volume: {min_rows: 1, max_drop_pct: 50, max_growth_pct: 500, baseline_versions: 3}
+columns:
+  - {name: region,           type: string, required: true, unique: true, accepted_values: [North, South, East, West]}
+  - {name: manager,          type: string, required: true}
+  - {name: quarterly_target, type: float,  required: true, min: 0}
