@@ -44,6 +44,9 @@ def test_schema_drift_requires_approval_then_reprocesses(base_svc):
 def test_injection_without_defenses_is_still_contained(base_svc):
     base_svc.flags.set("guardrails.spotlighting", False)
     base_svc.flags.set("feature.critic_review", False)
+    # Worst case: the model always obeys instructions hidden in data. With the default 0.9 the simulated model
+    # was sometimes not fooled, which made this test flaky and let the containment checks pass vacuously.
+    base_svc.flags.set("chaos.injection_susceptibility", 1.0)
     drive(base_svc, "injection")
     approve_all(base_svc)
     executed = {r["action"] for r in base_svc.db.query("SELECT action FROM proposals WHERE status IN ('executed','verified')")}
