@@ -174,3 +174,7 @@ SwarmPipe/
 - `X-User` headers stand in for real authentication (OIDC); the local HMAC master key stands in for a KMS/Vault.
 - Parquet would be the production artifact format; pickle is used for internal step artifacts because the
   ARM64 pyarrow build on this machine is broken (see `swarmpipe/data/frames.py`).
+
+## License
+
+SwarmPipe is released under the [MIT License](LICENSE).
